@@ -9,6 +9,7 @@
 //   node check-handoff.mjs [path to HANDOFF.md] [--minimal]
 //     default path: ./HANDOFF.md
 //     --minimal: the short handoff written near a usage limit (sections 1, 2 and 5 required; 15+ lines)
+//     --json: print {ok, path, lines, failures, warnings} as JSON instead of text, for CI or other tools
 //
 // Ends with "OK" (exit 0) or with the list of failures (exit 1). Warnings never block.
 
@@ -17,6 +18,7 @@ import { resolve } from 'node:path';
 
 const argv = process.argv.slice(2);
 const minimal = argv.includes('--minimal');
+const json = argv.includes('--json');
 const path = resolve(argv.find((a) => !a.startsWith('--')) || 'HANDOFF.md');
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -24,7 +26,8 @@ const now = new Date();
 const nowStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
 if (!existsSync(path)) {
-  console.log(`FAIL: ${path} does not exist`);
+  if (json) console.log(JSON.stringify({ ok: false, path, lines: 0, failures: [`${path} does not exist`], warnings: [] }));
+  else console.log(`FAIL: ${path} does not exist`);
   process.exit(1);
 }
 
@@ -187,6 +190,10 @@ if (!mh) {
 }
 
 // --- Result --------------------------------------------------------------------------------------
+if (json) {
+  console.log(JSON.stringify({ ok: failures.length === 0, path, lines: n, failures, warnings }));
+  process.exit(failures.length ? 1 : 0);
+}
 console.log(`Handoff: ${path} (${n} lines${minimal ? ', minimal mode' : ''}) · now: ${nowStr}`);
 for (const w of warnings) console.log(`  warning: ${w}`);
 if (failures.length) {
