@@ -159,6 +159,22 @@ ok('env var NAME without a value is fine', lint(H('envok.md', ex.replace('## 3. 
 ok('real secret still caught', lint(H('sec.md', withStep(`Key is ${fakeKey}.`))).status === 1);
 ok('quoted secret literal caught', lint(H('sec2.md', withStep('Set password: "hunter2hunter2" in prod.'))).status === 1);
 
+// --json: same exit codes, machine-readable result, text output unchanged without the flag
+const parseJson = (r) => { try { return JSON.parse(r.stdout); } catch { return {}; } };
+const jsonOk = H('json-ok.md', ex);
+const jr = lint(jsonOk, '--json');
+const jd = parseJson(jr);
+ok('--json: valid handoff gives ok:true, path, line count and exit 0', jr.status === 0 && jd.ok === true && jd.path === jsonOk && jd.lines === ex.split('\n').length && Array.isArray(jd.failures) && Array.isArray(jd.warnings), jr.stdout);
+const jf = lint(H('json-bad.md', withStep(`Key is ${fakeKey}.`)), '--json');
+const jfd = parseJson(jf);
+ok('--json: failing handoff gives ok:false with failures and exit 1', jf.status === 1 && jfd.ok === false && jfd.failures.some((f) => /possible secret/.test(f)) && !jf.stdout.includes(fakeKey), jf.stdout);
+ok('--json: missing file gives ok:false and exit 1', lint(join(T, 'nope.md'), '--json').status === 1 && parseJson(lint(join(T, 'nope.md'), '--json')).ok === false);
+const jm = lint(H('json-min.md', minimalDoc), '--minimal', '--json');
+ok('--json --minimal: minimal handoff gives ok:true and exit 0', jm.status === 0 && parseJson(jm).ok === true, jm.stdout);
+ok('--json without --minimal: minimal handoff gives ok:false and exit 1', lint(H('json-min2.md', minimalDoc), '--json').status === 1 && parseJson(lint(H('json-min3.md', minimalDoc), '--json')).ok === false);
+const tx = lint(jsonOk);
+ok('without --json the output is still text ending with OK', tx.status === 0 && /\nOK\n$/.test(tx.stdout) && !tx.stdout.trimStart().startsWith('{'), tx.stdout);
+
 // ---------- hook ----------
 const hook = (cwd, env = {}) => run('node', [HK], { input: JSON.stringify({ cwd }), env: { ...process.env, ...env } }).stdout;
 const hd = join(T, 'hk'); mkdirSync(join(hd, 'a'), { recursive: true });
